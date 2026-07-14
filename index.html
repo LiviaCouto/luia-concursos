@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Luia Concursos</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="wrap">
+  <div class="header">
+    <div class="selo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 5.5C4 4.7 4.7 4 5.5 4H12v16H5.5c-.8 0-1.5-.7-1.5-1.5v-13zM20 5.5c0-.8-.7-1.5-1.5-1.5H12v16h6.5c.8 0 1.5-.7 1.5-1.5v-13z"/></svg>
+    </div>
+    <div class="header-textos">
+      <h1>Luia Concursos</h1>
+      <p>PC-PE · Agente de Polícia</p>
+    </div>
+    <button class="theme-toggle" id="theme-toggle" title="Alternar tema"></button>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" data-tab="hoje">Hoje</button>
+    <button class="tab" data-tab="registrar">Registrar</button>
+    <button class="tab" data-tab="progresso">Progresso</button>
+    <button class="tab" data-tab="edital">Edital</button>
+    <button class="tab" data-tab="cronograma">Cronograma</button>
+    <button class="tab" data-tab="config">Config</button>
+  </div>
+
+  <div id="tab-hoje"></div>
+  <div id="tab-registrar" style="display:none"></div>
+  <div id="tab-progresso" style="display:none"></div>
+  <div id="tab-edital" style="display:none"></div>
+  <div id="tab-cronograma" style="display:none"></div>
+  <div id="tab-config" style="display:none"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/data.js"></script>
+<script src="js/app.js"></script>
+<script src="js/supabase-client.js"></script>
+<script src="js/init.js"></script>
+</body>
+</html>
