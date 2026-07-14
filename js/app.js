@@ -7,6 +7,8 @@ const STORAGE_KEY = "luialiv-data";
 const MIN_QUESTOES_PONTO_FRACO = 3;
 const MIN_QUESTOES_DIA_ATIVO = 10;
 const MESES_ABREV = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
+const MESES_NOMES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+const DIAS_SEMANA_ABREV = ["D","S","T","Q","Q","S","S"];
 
 const ICONS = {
   check: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>`,
@@ -22,7 +24,9 @@ const ICONS = {
   edit: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>`,
   download: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v13m0 0l-4-4m4 4l4-4M4 20h16"/></svg>`,
   upload: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 20V7m0 0l-4 4m4-4l4 4M4 4h16"/></svg>`,
-  search: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>`
+  search: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>`,
+  chevronLeft: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>`,
+  chevronRight: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>`
 };
 
 let DATA = {
@@ -38,6 +42,8 @@ let sessaoEditandoId = null;
 let disciplinaAberta = null;
 let buscaEdital = "";
 let filtroEvolucao = "";
+let heatmapAno = new Date().getFullYear();
+let heatmapMes = new Date().getMonth(); // 0-indexado
 
 // ---------- Utilitários de data ----------
 function todayLocal() {
@@ -411,6 +417,11 @@ function renderHoje() {
   html += `</div>`;
   el.innerHTML = html;
 
+  const btnPrev = document.getElementById("heatmap-prev");
+  const btnNext = document.getElementById("heatmap-next");
+  if (btnPrev) btnPrev.addEventListener("click", () => mudarMesHeatmap(-1));
+  if (btnNext) btnNext.addEventListener("click", () => mudarMesHeatmap(1));
+
   el.querySelectorAll("[data-result]").forEach(btn => {
     btn.addEventListener("click", async () => {
       const id = btn.dataset.id;
@@ -660,46 +671,52 @@ function renderPontosFracos() {
   return html;
 }
 
+function maxQuestoesDiaAtivoGlobal() {
+  const datas = [...new Set(DATA.sessions.map(s => s.data))].filter(d => diaEstaAtivo(d));
+  const contagens = datas.map(d => totalQuestoesPorDia(d));
+  return Math.max(1, ...contagens);
+}
+
+function podeAvancarMesHeatmap() {
+  const hoje = new Date();
+  return (heatmapAno * 12 + heatmapMes) < (hoje.getFullYear() * 12 + hoje.getMonth());
+}
+
+function mudarMesHeatmap(delta) {
+  let novoMes = heatmapMes + delta;
+  let novoAno = heatmapAno;
+  if (novoMes < 0) { novoMes = 11; novoAno--; }
+  if (novoMes > 11) { novoMes = 0; novoAno++; }
+  const hoje = new Date();
+  if (novoAno * 12 + novoMes > hoje.getFullYear() * 12 + hoje.getMonth()) return;
+  heatmapAno = novoAno;
+  heatmapMes = novoMes;
+  renderHoje();
+}
+
 function renderHeatmap() {
-  const NUM_SEMANAS = 12;
   const today = todayLocal();
-  const anoAtual = today.split("-")[0];
+  const max = maxQuestoesDiaAtivoGlobal();
+  const isMesAtual = (heatmapAno === new Date().getFullYear() && heatmapMes === new Date().getMonth());
 
-  const diaSemanaHoje = new Date(today + "T00:00:00").getDay();
-  const domingoAtual = addDays(today, -diaSemanaHoje);
-  const inicioGrid = addDays(domingoAtual, -7 * (NUM_SEMANAS - 1));
+  const primeiroDiaSemana = new Date(heatmapAno, heatmapMes, 1).getDay();
+  const numDias = new Date(heatmapAno, heatmapMes + 1, 0).getDate();
 
-  // monta as semanas (cada uma com 7 dias, alguns podem ser futuros/nulos)
-  const semanas = [];
-  for (let w = 0; w < NUM_SEMANAS; w++) {
-    const semanaInicio = addDays(inicioGrid, w * 7);
-    const dias = [];
-    for (let d = 0; d < 7; d++) {
-      const data = addDays(semanaInicio, d);
-      dias.push(data > today ? null : data);
-    }
-    semanas.push({ inicio: semanaInicio, dias });
+  let celulas = [];
+  for (let i = 0; i < primeiroDiaSemana; i++) celulas.push(null);
+  for (let dia = 1; dia <= numDias; dia++) {
+    const data = `${heatmapAno}-${String(heatmapMes+1).padStart(2,'0')}-${String(dia).padStart(2,'0')}`;
+    celulas.push(data > today ? "futuro" : data);
   }
+  while (celulas.length % 7 !== 0) celulas.push(null);
 
-  // contagens só consideram dias que bateram o mínimo diário
-  const contagens = semanas.flatMap(s => s.dias)
-    .filter(d => d && diaEstaAtivo(d))
-    .map(d => totalQuestoesPorDia(d));
-  const max = Math.max(1, ...contagens);
+  const cabecalhoDias = DIAS_SEMANA_ABREV.map(d => `<div class="heatmap-dow">${d}</div>`).join("");
 
-  // labels de mês — só aparece quando muda o mês em relação à semana anterior
-  let mesAnterior = null;
-  const labelsHtml = semanas.map(s => {
-    const mes = new Date(s.inicio + "T00:00:00").getMonth();
-    const mostrar = mes !== mesAnterior;
-    mesAnterior = mes;
-    return `<div class="heatmap-mes-label">${mostrar ? MESES_ABREV[mes] : ""}</div>`;
-  }).join("");
-
-  const quadradosHtml = semanas.map(s => s.dias.map(d => {
-    if (!d) return `<div class="heatmap-dia vazio"></div>`;
-    const ativo = diaEstaAtivo(d);
-    const count = totalQuestoesPorDia(d);
+  const quadrados = celulas.map(c => {
+    if (c === null) return `<div class="heatmap-dia vazio"></div>`;
+    if (c === "futuro") return `<div class="heatmap-dia futuro"></div>`;
+    const ativo = diaEstaAtivo(c);
+    const count = totalQuestoesPorDia(c);
     let nivel = 0;
     if (ativo) {
       nivel = 1;
@@ -707,29 +724,35 @@ function renderHeatmap() {
       if (count >= max * 0.75) nivel = 3;
       if (count >= max) nivel = 4;
     }
-    const hoje = d === today ? "hoje" : "";
-    return `<div class="heatmap-dia nivel-${nivel} ${hoje}" title="${fmtDateFull(d)} · ${count} questões${!ativo && count > 0 ? ' (abaixo do mínimo de ' + MIN_QUESTOES_DIA_ATIVO + ')' : ''}"></div>`;
-  }).join("")).join("");
+    const hoje = c === today ? "hoje" : "";
+    const numeroDia = parseInt(c.split("-")[2]);
+    return `<div class="heatmap-dia nivel-${nivel} ${hoje}" title="${fmtDateFull(c)} · ${count} questões${!ativo && count > 0 ? ' (abaixo do mínimo de ' + MIN_QUESTOES_DIA_ATIVO + ')' : ''}"><span class="heatmap-dia-num">${numeroDia}</span></div>`;
+  }).join("");
 
   return `
     <div class="card">
       <div class="heatmap-header">
         <span class="icone">${ICONS.flag}</span>
         <span class="titulo">Sua sequência</span>
-        <span class="ano">${anoAtual}</span>
       </div>
       <div class="subtitle">mínimo ${MIN_QUESTOES_DIA_ATIVO} questões/dia pra contar · borda marca hoje</div>
-      <div class="heatmap-wrap">
-        <div class="heatmap-mes-labels" style="grid-template-columns:repeat(${NUM_SEMANAS},1fr)">${labelsHtml}</div>
-        <div class="heatmap-grid" style="grid-template-columns:repeat(${NUM_SEMANAS},1fr)">${quadradosHtml}</div>
+
+      <div class="heatmap-nav">
+        <button class="btn-icon pequeno" id="heatmap-prev" title="Mês anterior">${ICONS.chevronLeft}</button>
+        <span class="heatmap-mes-titulo">${MESES_NOMES[heatmapMes]} ${heatmapAno}${isMesAtual ? " · atual" : ""}</span>
+        <button class="btn-icon pequeno" id="heatmap-next" title="Próximo mês" ${podeAvancarMesHeatmap() ? "" : "disabled"}>${ICONS.chevronRight}</button>
       </div>
+
+      <div class="heatmap-dow-row">${cabecalhoDias}</div>
+      <div class="heatmap-grid-mes">${quadrados}</div>
+
       <div class="heatmap-legenda">
         <span>menos</span>
-        <div class="heatmap-dia nivel-0"></div>
-        <div class="heatmap-dia nivel-1"></div>
-        <div class="heatmap-dia nivel-2"></div>
-        <div class="heatmap-dia nivel-3"></div>
-        <div class="heatmap-dia nivel-4"></div>
+        <div class="heatmap-dia nivel-0" style="aspect-ratio:unset;width:13px;height:13px;"></div>
+        <div class="heatmap-dia nivel-1" style="aspect-ratio:unset;width:13px;height:13px;"></div>
+        <div class="heatmap-dia nivel-2" style="aspect-ratio:unset;width:13px;height:13px;"></div>
+        <div class="heatmap-dia nivel-3" style="aspect-ratio:unset;width:13px;height:13px;"></div>
+        <div class="heatmap-dia nivel-4" style="aspect-ratio:unset;width:13px;height:13px;"></div>
         <span>mais</span>
       </div>
     </div>
