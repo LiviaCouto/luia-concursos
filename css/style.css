@@ -766,3 +766,42 @@ input[type="file"] { display: none; }
 .heatmap-header .titulo { font-family: 'Lora', serif; font-weight: 700; font-size: 17px; flex: 1; }
 .heatmap-header .ano { font-family: 'IBM Plex Mono', monospace; color: var(--text-dim); font-size: 13px; }
 .heatmap-dia.hoje { box-shadow: 0 0 0 2px var(--slate) inset; }
+
+/* ============================================================
+   TRAVA DE ACESSO (palavra-chave)
+   ============================================================ */
+.gate-overlay {
+  position: fixed; inset: 0; z-index: 1000;
+  background: var(--fundo);
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+}
+.gate-card {
+  background: var(--painel);
+  border: 1px solid var(--borda);
+  border-radius: 16px;
+  padding: 36px 32px;
+  max-width: 380px;
+  width: 100%;
+  box-shadow: 0 8px 32px var(--sombra);
+}
+.gate-erro {
+  background: rgba(181,114,106,0.12);
+  border-left: 3px solid var(--erro);
+  color: var(--erro);
+  font-size: 13px;
+  padding: 10px 12px;
+  border-radius: 0 6px 6px 0;
+  margin-top: 14px;
+}
+.btn-link {
+  width: 100%;
+  background: transparent;
+  border: none;
+  color: var(--papel-dim);
+  font-size: 13px;
+  margin-top: 12px;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.btn-link:hover { color: var(--latao); }
