@@ -17,7 +17,8 @@ const DEFAULT_DATA = {
   sessions: [],
   reviews: [],
   config: { dataProva: "", metaDiaria: 80 },
-  acesso: null
+  acesso: null,
+  perfil: { apelido: "" }
 };
 
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
