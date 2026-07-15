@@ -6,5 +6,5 @@
 
 loadData().then(() => {
   aplicarTema();
-  render();
+  montarTelaGate();
 });
