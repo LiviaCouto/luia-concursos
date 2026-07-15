@@ -25,6 +25,7 @@ const ICONS = {
   download: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v13m0 0l-4-4m4 4l4-4M4 20h16"/></svg>`,
   upload: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 20V7m0 0l-4 4m4-4l4 4M4 4h16"/></svg>`,
   search: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>`,
+  user: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.5-7 8-7s8 3 8 7"/></svg>`,
   chevronLeft: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>`,
   chevronRight: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>`
 };
@@ -35,7 +36,9 @@ let DATA = {
   cronograma: {},
   sessions: [],
   reviews: [],
-  config: { dataProva: "", metaDiaria: 80 }
+  config: { dataProva: "", metaDiaria: 80 },
+  acesso: null,
+  perfil: { apelido: "" }
 };
 
 let sessaoEditandoId = null;
@@ -1016,7 +1019,41 @@ function renderCronograma() {
 // ============================================================
 function renderConfig() {
   const el = document.getElementById("tab-config");
+  const existeSenha = temPalavraChave();
+
   el.innerHTML = `
+    <div class="card">
+      <h3>${ICONS.user} Perfil & Segurança</h3>
+      <label>Como você quer ser chamada</label>
+      <input id="cfg-apelido" value="${DATA.perfil?.apelido || ''}" placeholder="ex: Lívia" />
+
+      <hr style="border:none;border-top:1px solid var(--borda);margin:20px 0" />
+
+      ${existeSenha ? `
+        <div class="badge-senha-ok">${ICONS.check} Palavra-chave definida</div>
+        <label>Nova palavra-chave (deixe em branco pra manter a atual)</label>
+        <div class="senha-wrap"><input type="password" id="cfg-alt-senha" placeholder="Nova palavra-chave" /><button type="button" class="btn-olho" data-target="cfg-alt-senha">${ICONS_GATE.eye}</button></div>
+        <label>Confirmar nova palavra-chave</label>
+        <div class="senha-wrap"><input type="password" id="cfg-alt-senha-confirma" placeholder="Repita a nova palavra-chave" /><button type="button" class="btn-olho" data-target="cfg-alt-senha-confirma">${ICONS_GATE.eye}</button></div>
+        <div id="cfg-senha-erro" class="gate-erro" style="display:none"></div>
+        <button class="btn-primary" id="cfg-alterar-senha-btn">Salvar nova palavra-chave</button>
+      ` : `
+        <p style="font-size:13px;color:var(--papel-dim);margin-bottom:12px">Você está em modo visitante ou ainda não criou sua palavra-chave. Crie agora pra proteger seu dossiê.</p>
+        <label>Criar palavra-chave</label>
+        <div class="senha-wrap"><input type="password" id="cfg-nova-senha" placeholder="Nova palavra-chave" /><button type="button" class="btn-olho" data-target="cfg-nova-senha">${ICONS_GATE.eye}</button></div>
+        <label>Confirmar</label>
+        <div class="senha-wrap"><input type="password" id="cfg-nova-senha-confirma" placeholder="Repita a palavra-chave" /><button type="button" class="btn-olho" data-target="cfg-nova-senha-confirma">${ICONS_GATE.eye}</button></div>
+        <label>Pergunta secreta (pra recuperar se esquecer)</label>
+        <select id="cfg-pergunta">
+          ${PERGUNTAS_SECRETAS.map(p => `<option value="${p}">${p}</option>`).join("")}
+        </select>
+        <label>Resposta secreta</label>
+        <input type="text" id="cfg-resposta" placeholder="Só você sabe..." />
+        <div id="cfg-senha-erro" class="gate-erro" style="display:none"></div>
+        <button class="btn-primary" id="cfg-criar-senha-btn">Criar palavra-chave</button>
+      `}
+    </div>
+
     <div class="card">
       <h3>${ICONS.flag} Meta e prova</h3>
       <label>Data-alvo da prova (provisória, ajuste quando o edital sair)</label>
@@ -1039,16 +1076,48 @@ function renderConfig() {
     </div>
   `;
 
-  document.getElementById("cfg-data-prova").addEventListener("change", async (e) => {
-    DATA.config.dataProva = e.target.value;
+  ligarOlhos(el);
+
+  document.getElementById("cfg-apelido").addEventListener("change", async (e) => {
+    if (!DATA.perfil) DATA.perfil = { apelido: "" };
+    DATA.perfil.apelido = e.target.value.trim();
     await saveData();
-    showToast("Data da prova atualizada.");
+    showToast("Apelido salvo.");
   });
-  document.getElementById("cfg-meta").addEventListener("change", async (e) => {
-    DATA.config.metaDiaria = parseInt(e.target.value) || 80;
-    await saveData();
-    showToast("Meta diária atualizada.");
-  });
+
+  if (existeSenha) {
+    document.getElementById("cfg-alterar-senha-btn").addEventListener("click", async () => {
+      const nova = document.getElementById("cfg-alt-senha").value;
+      const confirma = document.getElementById("cfg-alt-senha-confirma").value;
+      const erroEl = document.getElementById("cfg-senha-erro");
+      if (!nova) { erroEl.style.display = "none"; showToast("Nada alterado."); return; }
+      if (nova.length < 4) { erroEl.textContent = "A palavra-chave precisa ter pelo menos 4 caracteres."; erroEl.style.display = "block"; return; }
+      if (nova !== confirma) { erroEl.textContent = "As palavras-chave não conferem."; erroEl.style.display = "block"; return; }
+      DATA.acesso.senhaHash = await hashTexto(nova);
+      await saveData();
+      showToast("Palavra-chave atualizada.");
+      renderConfig();
+    });
+  } else {
+    document.getElementById("cfg-criar-senha-btn").addEventListener("click", async () => {
+      const senha = document.getElementById("cfg-nova-senha").value;
+      const confirma = document.getElementById("cfg-nova-senha-confirma").value;
+      const pergunta = document.getElementById("cfg-pergunta").value;
+      const resposta = document.getElementById("cfg-resposta").value;
+      const erroEl = document.getElementById("cfg-senha-erro");
+      if (senha.length < 4) { erroEl.textContent = "A palavra-chave precisa ter pelo menos 4 caracteres."; erroEl.style.display = "block"; return; }
+      if (senha !== confirma) { erroEl.textContent = "As palavras-chave não conferem."; erroEl.style.display = "block"; return; }
+      if (!resposta.trim()) { erroEl.textContent = "Preencha a resposta secreta."; erroEl.style.display = "block"; return; }
+      DATA.acesso = { senhaHash: await hashTexto(senha), pergunta, respostaHash: await hashTexto(resposta) };
+      await saveData();
+      modoVisitante = false;
+      document.body.classList.remove("modo-visitante");
+      const banner = document.getElementById("banner-visitante");
+      if (banner) banner.remove();
+      showToast("Palavra-chave criada — seu dossiê está protegido agora.");
+      renderConfig();
+    });
+  }
 
   document.getElementById("btn-exportar").addEventListener("click", () => {
     const blob = new Blob([JSON.stringify(DATA, null, 2)], { type: "application/json" });
@@ -1072,7 +1141,7 @@ function renderConfig() {
       try {
         const novo = JSON.parse(ev.target.result);
         if (!confirm("Isso vai substituir todos os dados atuais pelos do arquivo. Continuar?")) return;
-        DATA = Object.assign({ tema: "light", assuntos: {}, cronograma: {}, sessions: [], reviews: [], config: { dataProva: "", metaDiaria: 80 } }, novo);
+        DATA = Object.assign({ tema: "light", assuntos: {}, cronograma: {}, sessions: [], reviews: [], config: { dataProva: "", metaDiaria: 80 }, acesso: null, perfil: { apelido: "" } }, novo);
         await saveData();
         aplicarTema();
         render();
@@ -1082,6 +1151,17 @@ function renderConfig() {
       }
     };
     reader.readAsText(file);
+  });
+
+  document.getElementById("cfg-data-prova").addEventListener("change", async (e) => {
+    DATA.config.dataProva = e.target.value;
+    await saveData();
+    showToast("Data da prova atualizada.");
+  });
+  document.getElementById("cfg-meta").addEventListener("change", async (e) => {
+    DATA.config.metaDiaria = parseInt(e.target.value) || 80;
+    await saveData();
+    showToast("Meta diária atualizada.");
   });
 }
 
