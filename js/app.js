@@ -1022,7 +1022,7 @@ function renderConfig() {
   const existeSenha = temPalavraChave();
 
   el.innerHTML = `
-    <div class="card">
+    <div class="card card-seguranca">
       <h3>${ICONS.user} Perfil & Segurança</h3>
       <label>Como você quer ser chamada</label>
       <input id="cfg-apelido" value="${DATA.perfil?.apelido || ''}" placeholder="ex: Lívia" />
@@ -1030,27 +1030,20 @@ function renderConfig() {
       <hr style="border:none;border-top:1px solid var(--borda);margin:20px 0" />
 
       ${existeSenha ? `
-        <div class="badge-senha-ok">${ICONS.check} Palavra-chave definida</div>
-        <label>Nova palavra-chave (deixe em branco pra manter a atual)</label>
+        <div class="badge-senha-ok">${ICONS.check} Palavra-chave configurada via banco</div>
+        <label>Senha atual</label>
+        <div class="senha-wrap"><input type="password" id="cfg-senha-atual" placeholder="Confirme sua senha atual" /><button type="button" class="btn-olho" data-target="cfg-senha-atual">${ICONS_GATE.eye}</button></div>
+        <label>Nova palavra-chave</label>
         <div class="senha-wrap"><input type="password" id="cfg-alt-senha" placeholder="Nova palavra-chave" /><button type="button" class="btn-olho" data-target="cfg-alt-senha">${ICONS_GATE.eye}</button></div>
         <label>Confirmar nova palavra-chave</label>
         <div class="senha-wrap"><input type="password" id="cfg-alt-senha-confirma" placeholder="Repita a nova palavra-chave" /><button type="button" class="btn-olho" data-target="cfg-alt-senha-confirma">${ICONS_GATE.eye}</button></div>
         <div id="cfg-senha-erro" class="gate-erro" style="display:none"></div>
-        <button class="btn-primary" id="cfg-alterar-senha-btn">Salvar nova palavra-chave</button>
+        <button class="btn-primary" id="cfg-alterar-senha-btn">Alterar palavra-chave</button>
       ` : `
-        <p style="font-size:13px;color:var(--papel-dim);margin-bottom:12px">Você está em modo visitante ou ainda não criou sua palavra-chave. Crie agora pra proteger seu dossiê.</p>
-        <label>Criar palavra-chave</label>
-        <div class="senha-wrap"><input type="password" id="cfg-nova-senha" placeholder="Nova palavra-chave" /><button type="button" class="btn-olho" data-target="cfg-nova-senha">${ICONS_GATE.eye}</button></div>
-        <label>Confirmar</label>
-        <div class="senha-wrap"><input type="password" id="cfg-nova-senha-confirma" placeholder="Repita a palavra-chave" /><button type="button" class="btn-olho" data-target="cfg-nova-senha-confirma">${ICONS_GATE.eye}</button></div>
-        <label>Pergunta secreta (pra recuperar se esquecer)</label>
-        <select id="cfg-pergunta">
-          ${PERGUNTAS_SECRETAS.map(p => `<option value="${p}">${p}</option>`).join("")}
-        </select>
-        <label>Resposta secreta</label>
-        <input type="text" id="cfg-resposta" placeholder="Só você sabe..." />
-        <div id="cfg-senha-erro" class="gate-erro" style="display:none"></div>
-        <button class="btn-primary" id="cfg-criar-senha-btn">Criar palavra-chave</button>
+        <div class="gate-erro" style="display:block">
+          Nenhuma palavra-chave configurada ainda no banco de dados. Ela precisa ser criada
+          diretamente via SQL no Supabase — o app não cria senha do zero, só altera uma já existente.
+        </div>
       `}
     </div>
 
@@ -1087,35 +1080,36 @@ function renderConfig() {
 
   if (existeSenha) {
     document.getElementById("cfg-alterar-senha-btn").addEventListener("click", async () => {
+      const atual = document.getElementById("cfg-senha-atual").value;
       const nova = document.getElementById("cfg-alt-senha").value;
       const confirma = document.getElementById("cfg-alt-senha-confirma").value;
       const erroEl = document.getElementById("cfg-senha-erro");
-      if (!nova) { erroEl.style.display = "none"; showToast("Nada alterado."); return; }
-      if (nova.length < 4) { erroEl.textContent = "A palavra-chave precisa ter pelo menos 4 caracteres."; erroEl.style.display = "block"; return; }
-      if (nova !== confirma) { erroEl.textContent = "As palavras-chave não conferem."; erroEl.style.display = "block"; return; }
-      DATA.acesso.senhaHash = await hashTexto(nova);
+      erroEl.style.display = "none";
+
+      const hashAtual = await hashTexto(atual);
+      if (hashAtual !== DATA.acesso.senhaHash) {
+        erroEl.textContent = "Senha atual incorreta.";
+        erroEl.style.display = "block";
+        return;
+      }
+      if (nova.length < 4) {
+        erroEl.textContent = "A nova palavra-chave precisa ter pelo menos 4 caracteres.";
+        erroEl.style.display = "block";
+        return;
+      }
+      if (nova !== confirma) {
+        erroEl.textContent = "As palavras-chave não conferem.";
+        erroEl.style.display = "block";
+        return;
+      }
+      const novoHash = await hashTexto(nova);
+      DATA.acesso.senhaHash = novoHash;
       await saveData();
-      showToast("Palavra-chave atualizada.");
-      renderConfig();
-    });
-  } else {
-    document.getElementById("cfg-criar-senha-btn").addEventListener("click", async () => {
-      const senha = document.getElementById("cfg-nova-senha").value;
-      const confirma = document.getElementById("cfg-nova-senha-confirma").value;
-      const pergunta = document.getElementById("cfg-pergunta").value;
-      const resposta = document.getElementById("cfg-resposta").value;
-      const erroEl = document.getElementById("cfg-senha-erro");
-      if (senha.length < 4) { erroEl.textContent = "A palavra-chave precisa ter pelo menos 4 caracteres."; erroEl.style.display = "block"; return; }
-      if (senha !== confirma) { erroEl.textContent = "As palavras-chave não conferem."; erroEl.style.display = "block"; return; }
-      if (!resposta.trim()) { erroEl.textContent = "Preencha a resposta secreta."; erroEl.style.display = "block"; return; }
-      DATA.acesso = { senhaHash: await hashTexto(senha), pergunta, respostaHash: await hashTexto(resposta) };
-      await saveData();
-      modoVisitante = false;
-      document.body.classList.remove("modo-visitante");
-      const banner = document.getElementById("banner-visitante");
-      if (banner) banner.remove();
-      showToast("Palavra-chave criada — seu dossiê está protegido agora.");
-      renderConfig();
+      marcarDispositivoConfiavel(novoHash);
+      showToast("Palavra-chave alterada.");
+      document.getElementById("cfg-senha-atual").value = "";
+      document.getElementById("cfg-alt-senha").value = "";
+      document.getElementById("cfg-alt-senha-confirma").value = "";
     });
   }
 
