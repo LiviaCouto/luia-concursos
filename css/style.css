@@ -768,14 +768,20 @@ input[type="file"] { display: none; }
 .heatmap-dia.hoje { box-shadow: 0 0 0 2px var(--slate) inset; }
 
 /* ============================================================
-   TRAVA DE ACESSO (palavra-chave)
+   TRAVA DE ACESSO (palavra-chave / modo visitante)
    ============================================================ */
 .gate-overlay {
   position: fixed; inset: 0; z-index: 1000;
-  background: var(--fundo);
-  display: flex; align-items: center; justify-content: center;
+  background: rgba(20,15,10,0.5);
+  backdrop-filter: blur(7px);
+  -webkit-backdrop-filter: blur(7px);
+  display: none; align-items: center; justify-content: center;
   padding: 24px;
 }
+.gate-overlay.ativo { display: flex; }
+
+body.gate-ativo .wrap { pointer-events: none; user-select: none; }
+
 .gate-card {
   background: var(--painel);
   border: 1px solid var(--borda);
@@ -805,3 +811,41 @@ input[type="file"] { display: none; }
   text-decoration: underline;
 }
 .btn-link:hover { color: var(--latao); }
+
+.senha-wrap { position: relative; }
+.senha-wrap input { padding-right: 44px; }
+.btn-olho {
+  position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+  width: 30px; height: 30px; border: none; background: transparent;
+  color: var(--papel-dim); cursor: pointer; display: flex; align-items: center; justify-content: center;
+}
+.btn-olho svg { width: 17px; height: 17px; }
+.btn-olho:hover { color: var(--latao); }
+
+/* Modo visitante — trava todo controle interativo dentro do conteúdo das abas */
+.banner-visitante {
+  display: flex; justify-content: space-between; align-items: center;
+  gap: 12px; background: rgba(198,164,104,0.14); border: 1px solid var(--latao);
+  border-radius: 10px; padding: 12px 16px; margin-bottom: 18px; font-size: 13.5px;
+}
+.banner-visitante button {
+  background: var(--latao); color: var(--fundo); border: none; border-radius: 7px;
+  padding: 7px 14px; font-size: 12.5px; font-weight: 700; cursor: pointer; width: auto; white-space: nowrap;
+}
+
+body.modo-visitante .tab-panel button,
+body.modo-visitante .tab-panel select,
+body.modo-visitante .tab-panel input,
+body.modo-visitante .tab-panel textarea {
+  pointer-events: none;
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.badge-senha-ok {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: rgba(156,171,148,0.16); color: var(--salvia);
+  font-size: 13px; font-weight: 600; padding: 6px 12px; border-radius: 8px;
+  margin-bottom: 14px;
+}
+.badge-senha-ok svg { width: 14px; height: 14px; }
