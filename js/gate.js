@@ -1,20 +1,16 @@
 /* ============================================================
    LUIA CONCURSOS — trava de acesso por palavra-chave
-   Fluxo:
-   - Tela de entrada: sempre pede a palavra-chave (se já existe)
-     OU oferece "entrar como visitante" (se ainda não existe).
-   - Criar/alterar a palavra-chave de verdade acontece dentro do
-     app, em Config → Perfil & Segurança (ver app.js).
-   - Modo visitante: navega em tudo, mas nenhuma ação salva nada.
+   A senha É SEMPRE criada via banco (SQL) — o app nunca cria
+   do zero. Aqui só existe: entrar, esqueci (recuperar via
+   pergunta secreta), e entrar como visitante.
+
+   "Dispositivo confiável": depois de entrar uma vez com a
+   senha certa, esse navegador não pede de novo (fica salvo
+   em localStorage, só nesse aparelho). Trocou de navegador
+   ou de dispositivo → pede de novo.
    ============================================================ */
 
-const PERGUNTAS_SECRETAS = [
-  "Nome do seu primeiro animal de estimação",
-  "Cidade onde você nasceu",
-  "Nome da sua mãe",
-  "Comida que você mais gosta",
-  "Apelido de infância"
-];
+const CHAVE_DISPOSITIVO_CONFIAVEL = "luia_dispositivo_confiavel";
 
 let modoVisitante = false;
 
@@ -31,6 +27,19 @@ async function hashTexto(texto) {
 
 function temPalavraChave() {
   return !!(DATA.acesso && DATA.acesso.senhaHash);
+}
+
+function dispositivoConfiavel() {
+  if (!temPalavraChave()) return false;
+  try {
+    return localStorage.getItem(CHAVE_DISPOSITIVO_CONFIAVEL) === DATA.acesso.senhaHash;
+  } catch (e) {
+    return false;
+  }
+}
+
+function marcarDispositivoConfiavel(hash) {
+  try { localStorage.setItem(CHAVE_DISPOSITIVO_CONFIAVEL, hash); } catch (e) {}
 }
 
 function inputComOlho(id, placeholder) {
@@ -54,10 +63,15 @@ function ligarOlhos(container) {
 }
 
 function montarTelaGate() {
-  const overlay = document.getElementById("gate-overlay");
-  overlay.innerHTML = telaEntrar();
+  if (dispositivoConfiavel()) {
+    desbloquear(false);
+    return;
+  }
+  document.body.classList.add("gate-ativo");
+  document.getElementById("gate-overlay").classList.add("ativo");
+  document.getElementById("gate-overlay").innerHTML = telaEntrar();
   ligarEventosEntrar();
-  ligarOlhos(overlay);
+  ligarOlhos(document.getElementById("gate-overlay"));
 }
 
 function nomeParaSaudacao() {
@@ -74,7 +88,7 @@ function telaEntrar() {
       </div>
       <h2 style="text-align:center;margin-bottom:6px">${nomeParaSaudacao()}</h2>
       <p style="text-align:center;color:var(--papel-dim);font-size:13.5px;margin-bottom:20px">
-        ${existeSenha ? "Digite sua palavra-chave pra carregar seus dados." : "Ainda não há palavra-chave criada pra esse dossiê."}
+        ${existeSenha ? "Digite sua palavra-chave pra carregar seu dossiê." : "Palavra-chave ainda não configurada no banco."}
       </p>
       ${existeSenha ? `
         <label>Palavra-chave</label>
@@ -84,12 +98,12 @@ function telaEntrar() {
         <button class="btn-link" id="gate-esqueci-btn">Esqueci minha palavra-chave</button>
       ` : `
         <div id="gate-erro" class="gate-erro" style="display:none"></div>
-        <button class="btn-primary" id="gate-visitante-btn" style="margin-top:6px">Entrar como visitante</button>
-        <p style="text-align:center;color:var(--papel-dim);font-size:12px;margin-top:14px">
-          No modo visitante você navega e vê tudo, mas nada pode ser salvo.
-          Crie sua palavra-chave depois, em Config → Perfil &amp; Segurança.
-        </p>
       `}
+      <div class="gate-divisor"><span>ou</span></div>
+      <button class="btn-outline-gate" id="gate-visitante-btn">Entrar como visitante</button>
+      <p style="text-align:center;color:var(--papel-dim);font-size:12px;margin-top:12px">
+        No modo visitante você navega e vê tudo, mas nada pode ser salvo.
+      </p>
     </div>
   `;
 }
@@ -106,6 +120,7 @@ function ligarEventosEntrar() {
       const senha = input.value;
       const hash = await hashTexto(senha);
       if (hash === DATA.acesso.senhaHash) {
+        marcarDispositivoConfiavel(hash);
         desbloquear(false);
       } else {
         mostrarErroGate("Palavra-chave incorreta.");
@@ -116,11 +131,11 @@ function ligarEventosEntrar() {
       document.getElementById("gate-overlay").innerHTML = telaRecuperar();
       ligarEventosRecuperar();
     });
-  } else {
-    document.getElementById("gate-visitante-btn").addEventListener("click", () => {
-      desbloquear(true);
-    });
   }
+
+  document.getElementById("gate-visitante-btn").addEventListener("click", () => {
+    desbloquear(true);
+  });
 }
 
 function telaRecuperar() {
@@ -183,8 +198,10 @@ function ligarEventosNovaSenha() {
     const confirma = document.getElementById("gate-nova-senha-confirma").value;
     if (senha.length < 4) return mostrarErroGate("A palavra-chave precisa ter pelo menos 4 caracteres.");
     if (senha !== confirma) return mostrarErroGate("As palavras-chave não conferem.");
-    DATA.acesso.senhaHash = await hashTexto(senha);
+    const novoHash = await hashTexto(senha);
+    DATA.acesso.senhaHash = novoHash;
     await saveData();
+    marcarDispositivoConfiavel(novoHash);
     desbloquear(false);
   });
 }
@@ -207,7 +224,7 @@ function montarBannerVisitante() {
   banner.id = "banner-visitante";
   banner.className = "banner-visitante";
   banner.innerHTML = `
-    <span>Modo visitante — você está só visualizando.</span>
+    <span>⚠ MODO VISITANTE — você está só visualizando, nada pode ser salvo</span>
     <button id="banner-visitante-sair">Entrar com senha</button>
   `;
   document.querySelector(".wrap").prepend(banner);
@@ -215,8 +232,6 @@ function montarBannerVisitante() {
     document.body.classList.remove("modo-visitante");
     modoVisitante = false;
     banner.remove();
-    document.body.classList.add("gate-ativo");
-    document.getElementById("gate-overlay").classList.add("ativo");
     montarTelaGate();
   });
 }
