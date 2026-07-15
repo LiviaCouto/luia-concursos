@@ -16,7 +16,8 @@ const DEFAULT_DATA = {
   cronograma: {},
   sessions: [],
   reviews: [],
-  config: { dataProva: "", metaDiaria: 80 }
+  config: { dataProva: "", metaDiaria: 80 },
+  acesso: null
 };
 
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
